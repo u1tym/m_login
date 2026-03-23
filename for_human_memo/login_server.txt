@@ -1,0 +1,69 @@
+Vue + Nginx + FastAPI で構成されたシステムを作っている。
+
+
+要件：
+- 認証専用の FastAPI を1つ作りたい
+- ログイン成功時に JWT を発行し、HttpOnly Cookie にセットする
+- Cookie の domain は指定しない（IP アクセスのため）
+- Cookie の属性は HttpOnly, Secure, SameSite=Lax, Path="/"
+- JWT の有効期限は 30 分
+- SECRET_KEY と ALGORITHM は環境変数から読み込む
+- /login と /logout を実装する
+- /me で Cookie の JWT を検証してユーザ情報を返す
+- パスワードはハッシュ化して検証する
+- CORS 設定は Vue からのアクセスを許可し、credentials を許可する
+
+なお、
+Nginx をリバースプロキシとして使っている。
+Vue は Nginx で配信し、FastAPI は /api/*** にプロキシしている。
+この認証は、/api/auth
+他には、/api/recipe、/api/schedule などがある。
+
+FastAPI は複数あるが、認証は1つの FastAPI (/api/auth) だけが担当する。
+他の FastAPI は Cookie の JWT を検証するだけ。
+
+アクセスは IP アドレス（IPv4/IPv6）で行われるため、Cookie の domain は指定しない。
+
+DBの接続先は、.envで作成して。
+初期値は、
+Server: localhost
+Database: tamtdb
+Port: 5432
+Username: tamtuser
+Password: TAMTTAMT
+にして
+
+テーブルは、
+
+Table "public.accounts"
+    Column     |            Type             | Collation | Nullable |               Default
+---------------+-----------------------------+-----------+----------+--------------------------------------
+ id            | integer                     |           | not null | nextval('accounts_id_seq'::regclass)
+ username      | character varying           |           | not null |
+ password      | character varying           |           | not null |
+ session_info  | text                        |           |          |
+ last_access   | timestamp without time zone |           | not null |
+ is_deleted    | boolean                     |           | not null |
+ created_at    | timestamp without time zone |           | not null | now()
+ updated_at    | timestamp without time zone |           | not null | now()
+ random_number | integer                     |           |          |
+Indexes:
+    "accounts_pkey" PRIMARY KEY, btree (id)
+    "ix_accounts_id" btree (id)
+    "ix_accounts_username" UNIQUE, btree (username)
+
+
+session_info、random_numberは、未使用でいいです。
+
+ソースコードは、pythonで、型ヒント句付けて
+
+fastapiで以下を作成して。
+/loginのAPI
+/logoutのAPI
+あと、JWT検証用のクラスを作成して。
+
+
+fastAPIの使い方をREADME.md
+APIとDB仕様をAPI_LOGIN_SPEC.md
+で、日本語で書いて
+
