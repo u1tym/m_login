@@ -86,6 +86,16 @@ location /api/auth/ {
 - `CORS_ORIGINS` に **実際の Vue のオリジン**（スキーム・ホスト・ポートまで一致）を含める
 - HTTPS（またはローカルで `Secure` を満たす環境）を用意する。Cookie は **`Secure`** のため、平文 HTTP ではブラウザが Cookie を送らないことがあります
 
+## ログ出力
+
+- 起動時に `auth_api/app/logging_utils.py` でロガーを初期化します
+- 出力先は標準出力と `logs/auth_api.log`（ローテーションあり）
+- 記録内容:
+  - リクエスト: メソッド、パス、クライアント IP、パス/クエリ/ボディのパラメータ
+  - レスポンス: ステータスコード、処理時間（ms）
+  - 異常時: HTTP エラー詳細、バリデーションエラー詳細、未処理例外の traceback
+- 機微情報（`password`、`token`、`cookie`、`authorization` などのキー）は `***` にマスクして出力します
+
 ## 他の FastAPI で JWT を検証する
 
 認証サービスと **同じ** `SECRET_KEY`・`ALGORITHM`・`COOKIE_NAME` を用いて、`auth_api/app/security/jwt_verifier.py` の `JWTVerifier` を利用できます。
