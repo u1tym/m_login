@@ -38,8 +38,11 @@
 
 | カラム | 型 | 必須 | 説明 |
 |---|---|---|---|
-| `aid` | integer | はい | `accounts.id` への外部キー、主キー |
+| `aid` | integer | はい | `accounts.id` への外部キー |
+| `endpoint` | text | はい | PushSubscription の endpoint |
 | `subscription` | text | はい | PushSubscription を JSON 文字列として保存 |
+
+主キーは `aid + endpoint` の複合キーを想定します（1ユーザー複数端末に対応）。
 
 ## 5. API 仕様
 
@@ -65,8 +68,9 @@
 
 1. `accounts` から `username` を検索（`is_deleted = false` のみ）
 2. 見つからなければ `404`
-3. `notice.subscriptions` を `aid=accounts.id` で検索
-4. レコードがあれば `subscription` を更新、なければ新規追加（upsert）
+3. `subscription.endpoint` を取り出す
+4. `notice.subscriptions` を `aid=accounts.id AND endpoint=subscription.endpoint` で検索
+5. レコードがあれば `subscription` を更新、なければ新規追加（upsert）
 
 #### レスポンス
 
@@ -99,9 +103,9 @@
 
 1. `VAPID_PRIVATE_KEY` の存在を確認（未設定なら `500`）
 2. `accounts` から `username` を検索（`is_deleted = false` のみ）
-3. `notice.subscriptions` から `aid=accounts.id` を取得
-4. 保存された `subscription`（JSON 文字列）をオブジェクト化
-5. 以下 payload を作成して `webpush()` で送信
+3. `notice.subscriptions` から `aid=accounts.id` の全レコードを取得
+4. 各レコードの `subscription`（JSON 文字列）をオブジェクト化
+5. 以下 payload を作成し、取得した全 subscription に対して `webpush()` を実行
 
 ```json
 {
@@ -116,17 +120,16 @@
 - 成功: `200`
 
 ```json
-{ "message": "ok" }
+{ "message": "ok", "sent_count": 2, "failed_count": 0 }
 ```
 
 - 主な失敗パターン
   - `500`: `VAPID_PRIVATE_KEY` 未設定
   - `404`: ユーザーなし
   - `404`: subscription 未登録
-  - `500`: DB 上の subscription JSON が不正
-  - `502`: Web Push 送信失敗
+  - `502`: 全件の Web Push 送信に失敗
 
 ## 6. 備考
 
-- `notice.subscriptions` は `aid` 主キーのため、1ユーザーにつき保存できる購読情報は1件です。
-- 複数デバイス対応が必要な場合は、主キー設計（例: `aid + endpoint`）の見直しが必要です。
+- 1件以上の送信が成功した場合は `200` を返し、`failed_count` で失敗件数を返します。
+- すべて失敗した場合のみ `502` を返します。

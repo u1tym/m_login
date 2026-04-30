@@ -22,10 +22,9 @@ class Account(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     random_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    notice_subscription: Mapped["NoticeSubscription | None"] = relationship(
+    notice_subscriptions: Mapped[list["NoticeSubscription"]] = relationship(
         "NoticeSubscription",
         back_populates="account",
-        uselist=False,
         cascade="all, delete-orphan",
     )
 
@@ -39,6 +38,7 @@ class NoticeSubscription(Base):
         ForeignKey("accounts.id", ondelete="CASCADE"),
         primary_key=True,
     )
+    endpoint: Mapped[str] = mapped_column(Text, primary_key=True)
     subscription: Mapped[str] = mapped_column(Text, nullable=False)
 
-    account: Mapped[Account] = relationship("Account", back_populates="notice_subscription")
+    account: Mapped[Account] = relationship("Account", back_populates="notice_subscriptions")

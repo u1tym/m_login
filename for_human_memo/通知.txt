@@ -1,0 +1,71 @@
+
+以下のAPIを追加して欲しい
+DBのテーブルレイアウトは後述
+
+1. subscription保存
+エンドポイント save-subscription で、以下の情報を受ける
+{
+    "username": "y-toyama",
+    "subscription": {
+        "endpoint": "https://fcm.googleapis.com/fcm/send/cB4WzH68nb4:APA91bHAJgn7iP0XqYeNhykjIrOY9a5VnPYyJBeWnuUZOXHn4Xqs9mXT1QZOsHmEcKkl7V5XjZX6_qmBc_Y0Y5Fzgm11t7d53P-JtdIMN63tBaQIH3IbSifT-4qga4u_fxORdDC3PDgK",
+        "expirationTime": null,
+        "keys": {
+            "p256dh": "BFlqu3cBWDPJ2GgE-Sm5XvmJl338hjQmO0i82-qb6mOTHuPQL7JaCAtf8if-ME_qR_5HatGjqBwaK-W05xQi_SU",
+            "auth": "tOY_UPsYNP1GOmJ4EuOTiQ"
+        }
+    }
+}
+
+notice.subscriptionを更新する。レコードが無ければ追加する。
+
+2. 通知
+エンドポイント notice で、以下の情報を受ける
+{
+    "username": ユーザ名,
+    "title": タイトル,
+    "message": 通知内容,
+    "url": タップ時に表示するURL
+}
+
+notice.subscriptionから必要な項目を取得して、webpush()で通知する。
+
+VAPID_PRIVATE_KEYは、.envから取得して。
+
+
+テーブルレイアウトは、以下。
+
+Table "public.accounts"
+    Column     |            Type             | Collation | Nullable |               Default
+---------------+-----------------------------+-----------+----------+--------------------------------------
+ id            | integer                     |           | not null | nextval('accounts_id_seq'::regclass)
+ username      | character varying           |           | not null |
+ password      | character varying           |           | not null |
+ session_info  | text                        |           |          |
+ last_access   | timestamp without time zone |           | not null |
+ is_deleted    | boolean                     |           | not null |
+ created_at    | timestamp without time zone |           | not null | now()
+ updated_at    | timestamp without time zone |           | not null | now()
+ random_number | integer                     |           |          |
+Indexes:
+    "accounts_pkey" PRIMARY KEY, btree (id)
+    "ix_accounts_id" btree (id)
+    "ix_accounts_username" UNIQUE, btree (username)
+Referenced by:
+    TABLE "notice.subscriptions" CONSTRAINT "fk_notice_subscripton_aid" FOREIGN KEY (aid) REFERENCES accounts(id) ON DELETE CASCADE
+
+Table "notice.subscriptions"
+    Column    |  Type   | Collation | Nullable | Default
+--------------+---------+-----------+----------+---------
+ aid          | integer |           | not null |
+ subscription | text    |           | not null |
+Indexes:
+    "subscriptions_pkey" PRIMARY KEY, btree (aid)
+Foreign-key constraints:
+    "fk_notice_subscripton_aid" FOREIGN KEY (aid) REFERENCES accounts(id) ON DELETE CASCADE
+
+
+実現できる？
+不明確な点は聞いて。
+実現不可の部分は、教えて。
+
+あと、API notice 部分については、API_NOTICE_SPEC.mdに日本語で整理して。

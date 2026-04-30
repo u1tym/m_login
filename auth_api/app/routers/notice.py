@@ -33,9 +33,21 @@ def save_subscription(
         )
 
     subscription_text = body.subscription.model_dump_json()
-    record = db.get(NoticeSubscription, account.id)
+    endpoint = body.subscription.endpoint
+    record = db.execute(
+        select(NoticeSubscription).where(
+            NoticeSubscription.aid == account.id,
+            NoticeSubscription.endpoint == endpoint,
+        )
+    ).scalar_one_or_none()
     if record is None:
-        db.add(NoticeSubscription(aid=account.id, subscription=subscription_text))
+        db.add(
+            NoticeSubscription(
+                aid=account.id,
+                endpoint=endpoint,
+                subscription=subscription_text,
+            )
+        )
     else:
         record.subscription = subscription_text
         db.add(record)
@@ -48,7 +60,7 @@ def send_notice(
     body: NoticeRequest,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
-) -> dict[str, str]:
+) -> dict[str, str | int]:
     if not settings.vapid_private_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -67,37 +79,44 @@ def send_notice(
             detail="ユーザーが見つかりません",
         )
 
-    record = db.get(NoticeSubscription, account.id)
-    if record is None:
+    records = db.execute(
+        select(NoticeSubscription).where(NoticeSubscription.aid == account.id)
+    ).scalars().all()
+    if not records:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="subscription が登録されていません",
         )
-
-    try:
-        subscription_info = json.loads(record.subscription)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="subscription の形式が不正です",
-        ) from exc
 
     payload = json.dumps(
         {"title": body.title, "message": body.message, "url": body.url},
         ensure_ascii=False,
     )
 
-    try:
-        webpush(
-            subscription_info=subscription_info,
-            data=payload,
-            vapid_private_key=settings.vapid_private_key,
-            vapid_claims={"sub": settings.vapid_claims_sub},
-        )
-    except WebPushException as exc:
+    errors: list[str] = []
+    sent_count = 0
+    for record in records:
+        try:
+            subscription_info = json.loads(record.subscription)
+        except json.JSONDecodeError:
+            errors.append(f"endpoint={record.endpoint}: subscription の形式が不正です")
+            continue
+
+        try:
+            webpush(
+                subscription_info=subscription_info,
+                data=payload,
+                vapid_private_key=settings.vapid_private_key,
+                vapid_claims={"sub": settings.vapid_claims_sub},
+            )
+            sent_count += 1
+        except WebPushException as exc:
+            errors.append(f"endpoint={record.endpoint}: {exc}")
+
+    if sent_count == 0 and errors:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"webpush 送信に失敗しました: {exc}",
-        ) from exc
+            detail=f"webpush 送信に失敗しました: {'; '.join(errors)}",
+        )
 
-    return {"message": "ok"}
+    return {"message": "ok", "sent_count": sent_count, "failed_count": len(errors)}

@@ -1,0 +1,15 @@
+create schema notice;
+
+create table notice.subscriptions (
+    aid  integer,
+    endpoint text not null,
+    subscription text not null,
+    primary key (aid, endpoint)
+);
+
+alter table notice.subscriptions
+    add constraint fk_notice_subscripton_aid
+    foreign key ( aid )
+    references public.accounts( id )
+    on delete cascade;
+
