@@ -139,4 +139,4 @@ m_login/
         jwt_verifier.py # JWT 検証クラス（他サービス向け）
 ```
 
-詳細な API・DB 仕様は [API_LOGIN_SPEC.md](./API_LOGIN_SPEC.md) を参照してください。
+詳細な API・DB 仕様は [API_LOGIN_SPEC.md](./API_LOGIN_SPEC.md) および [API_NOTICE_SPEC.md](./API_NOTICE_SPEC.md) を参照してください。

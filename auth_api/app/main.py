@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .logging_utils import format_payload, setup_logging
-from .routers import auth
+from .routers import auth, notice
 
 settings = get_settings()
 logger = setup_logging()
@@ -34,6 +34,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(notice.router)
 
 
 @app.middleware("http")

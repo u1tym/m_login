@@ -33,6 +33,8 @@ class Settings(BaseSettings):
 
     cookie_name: str = "access_token"
     access_token_expire_minutes: int = 30
+    vapid_private_key: str = ""
+    vapid_claims_sub: str = "mailto:admin@example.com"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
