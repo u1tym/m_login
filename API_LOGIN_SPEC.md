@@ -4,12 +4,12 @@
 
 | 項目 | 内容 |
 |------|------|
-| 役割 | ログイン・ログアウト、JWT 発行（HttpOnly Cookie）、自身のユーザー情報取得 |
+| 役割 | ログイン・ログアウト、JWT 更新（`/refresh`）、JWT 発行（HttpOnly Cookie）、自身のユーザー情報取得 |
 | 想定 URL | Nginx 経由で `/api/auth` 以下（バックエンドでは `/login` 等） |
 | 認証方式 | JWT（Cookie 名は既定 `access_token`） |
 | トークン有効期限 | 30 分（環境変数 `ACCESS_TOKEN_EXPIRE_MINUTES` で変更可） |
 
-他の FastAPI（`/api/recipe`、`/api/schedule` 等）は **JWT を発行せず**、Cookie の JWT を検証するだけです。検証ロジックは `JWTVerifier`（`auth_api/app/security/jwt_verifier.py`）を共有してください。
+他の FastAPI（`/api/recipe`、`/api/schedule` 等）は **JWT を発行せず**、Cookie の JWT を検証するだけです。トークン期限の延長は **本認証 API の `POST /refresh`** のみが行います（有効な JWT が必要。期限切れの場合は再ログイン）。検証ロジックは `JWTVerifier`（`auth_api/app/security/jwt_verifier.py`）を共有してください。
 
 ---
 
@@ -140,7 +140,34 @@ Cookie 削除時も、設定時と同様に `Path=/`、`HttpOnly`、`Secure`、`
 
 ---
 
-### 4.3 `GET /me`
+### 4.3 `POST /refresh`
+
+**有効期限内**の JWT Cookie を検証し、新しい JWT を発行して **同じ Cookie 名で上書き**します。期限切れのトークンでは延長できません（`401` → 再ログイン）。
+
+**リクエスト**
+
+- 必須: 有効な JWT Cookie（名前は `COOKIE_NAME`）
+- 本文は不要（空の POST で可）
+
+**レスポンス `200`**
+
+```json
+{ "message": "ok" }
+```
+
+**副作用**
+
+- `last_access`、`updated_at` を現在時刻で更新（`/login` と同様）
+- `Set-Cookie` で新しい JWT をセット（属性は `/login` と同じ）
+
+**エラー `401`**
+
+- Cookie なし、JWT 不正・**期限切れ**
+- `sub` が不正、または該当ユーザーなし / 削除済み
+
+---
+
+### 4.4 `GET /me`
 
 Cookie 内の JWT を検証し、DB からユーザーを読み取って返します。
 
@@ -166,7 +193,7 @@ Cookie 内の JWT を検証し、DB からユーザーを読み取って返し�
 
 ---
 
-### 4.4 `GET /health`
+### 4.5 `GET /health`
 
 稼働確認用。認証不要。
 
@@ -230,7 +257,7 @@ FastAPI 既定の JSON 形式です。
 
 | ファイル | 内容 |
 |----------|------|
-| `auth_api/app/routers/auth.py` | `/login` `/logout` `/me` |
+| `auth_api/app/routers/auth.py` | `/login` `/logout` `/refresh` `/me` |
 | `auth_api/app/security/jwt_tokens.py` | JWT 発行 |
 | `auth_api/app/security/jwt_verifier.py` | JWT 検証クラス |
 | `auth_api/app/security/password.py` | bcrypt 検証・ハッシュ生成 |

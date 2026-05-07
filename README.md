@@ -1,6 +1,6 @@
 # 認証 API（FastAPI）
 
-Vue + Nginx + 複数 FastAPI 構成のうち、`/api/auth` に配置する **認証専用** の API です。ログイン成功時に JWT を **HttpOnly Cookie** に格納し、`/me` で検証してユーザー情報を返します。
+Vue + Nginx + 複数 FastAPI 構成のうち、`/api/auth` に配置する **認証専用** の API です。ログイン成功時に JWT を **HttpOnly Cookie** に格納し、`/refresh` で有効期限内のトークンを更新でき、`/me` で検証してユーザー情報を返します。
 
 ## 前提
 
@@ -64,7 +64,7 @@ uvicorn auth_api.app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Nginx との関係
 
-本アプリのルートは **`/login` / `/logout` / `/me`** です。リバースプロキシで **`/api/auth/` をこのアプリの `/` に付け替える** 構成を想定しています。
+本アプリのルートは **`/login` / `/logout` / `/refresh` / `/me`** です。リバースプロキシで **`/api/auth/` をこのアプリの `/` に付け替える** 構成を想定しています。
 
 例（概念）:
 
@@ -132,7 +132,7 @@ m_login/
       database.py       # DB セッション
       models.py         # SQLAlchemy モデル
       schemas.py        # Pydantic
-      routers/auth.py   # /login /logout /me
+      routers/auth.py   # /login /logout /refresh /me
       security/
         password.py     # bcrypt
         jwt_tokens.py   # JWT 発行

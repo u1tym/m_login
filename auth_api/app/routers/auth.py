@@ -17,6 +17,19 @@ from ..security.password import verify_password
 router = APIRouter(tags=["auth"])
 
 
+def _set_access_token_cookie(response: Response, token: str, settings: Settings) -> None:
+    max_age = settings.access_token_expire_minutes * 60
+    response.set_cookie(
+        key=settings.cookie_name,
+        value=token,
+        max_age=max_age,
+        path="/",
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+
+
 def _get_verifier(settings: Settings = Depends(get_settings)) -> JWTVerifier:
     return JWTVerifier(
         secret_key=settings.secret_key,
@@ -55,16 +68,7 @@ def login(
         extra_claims={"username": account.username},
         settings=settings,
     )
-    max_age = settings.access_token_expire_minutes * 60
-    response.set_cookie(
-        key=settings.cookie_name,
-        value=token,
-        max_age=max_age,
-        path="/",
-        httponly=True,
-        secure=True,
-        samesite="lax",
-    )
+    _set_access_token_cookie(response, token, settings)
     return {"message": "ok"}
 
 
@@ -80,6 +84,57 @@ def logout(
         secure=True,
         samesite="lax",
     )
+    return {"message": "ok"}
+
+
+@router.post("/refresh", status_code=status.HTTP_200_OK)
+def refresh(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    verifier: JWTVerifier = Depends(_get_verifier),
+) -> dict[str, str]:
+    """有効な JWT のみ受理する。期限切れトークンでは延長できない（再ログインが必要）。"""
+    claims = verifier.verify_request(request)
+    sub = claims.get("sub")
+    if sub is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="トークンに subject がありません",
+        )
+    try:
+        user_id = int(sub)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="無効な subject です",
+        ) from e
+
+    account = db.execute(
+        select(Account).where(
+            Account.id == user_id,
+            Account.is_deleted.is_(False),
+        )
+    ).scalar_one_or_none()
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="ユーザーが見つかりません",
+        )
+
+    now = datetime.utcnow()
+    account.last_access = now
+    account.updated_at = now
+    db.add(account)
+    db.commit()
+
+    token = create_access_token(
+        subject=str(account.id),
+        extra_claims={"username": account.username},
+        settings=settings,
+    )
+    _set_access_token_cookie(response, token, settings)
     return {"message": "ok"}
 
 
